@@ -26,7 +26,7 @@ A diferencia de herramientas convencionales, **OMDownloader** implementa un sist
 
 ---
 
-## ⚡ Ingeniería de Nivel Élite
+## ⚡ Ingeniería del script 
 
 | Dimensión | Excelencia Técnica |
 | :--- | :--- |
@@ -39,7 +39,7 @@ A diferencia de herramientas convencionales, **OMDownloader** implementa un sist
 
 ---
 
-## ✨ Características Destacadas
+## ✨ Características 
 
 *   📡 **Motor de Telegram Blindado:** Soporte para canales, grupos y chats privados. Gestión automática de `FloodWait`, captura de avatares históricos y preservación de marcas de tiempo.
 *   🎬 **Soporte Universal (yt-dlp):** Descarga inteligente de videos, audio y playlists desde cientos de plataformas (YouTube, Twitter, TikTok, etc.) con fusión automática a MP4 de alta calidad.
@@ -106,16 +106,16 @@ Máximo rendimiento de arranque. Ideal para entornos de trabajo fijos donde la v
 
 **OMDownloader** es una herramienta potente diseñada para la investigación, el archivo personal y la educación. El usuario es el único responsable del cumplimiento de los términos de servicio de las plataformas de origen y las leyes de propiedad intelectual vigentes.
 
----
+--- 
 
-## 👨‍💻 Autoría y Soporte
+## 👨‍💻 Autor
 
 **Walter Pablo Téllez Ayala**  
-*Senior Software Developer*  
-📍 Bolivia 🇧🇴  
+Software Developer  
+📍 Bolivia 🇧🇴 <img src="https://flagcdn.com/w20/bo.png" width="20"/> <br>
 📧 [pharmakoz@gmail.com](mailto:pharmakoz@gmail.com) 
 
-© 2026 — **OMDownloader Professional Edition**
+© 2026 — Wordy Professional Tool
 
 ---
 
