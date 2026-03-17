@@ -65,7 +65,15 @@ OMDownloader/
 ├── utils/              # Utilidades: ImageManager, Logger Rotativo, Resources.
 └── main.py             # Bootstrap de la aplicación y DI (Dependency Injection).
 ```
+---
 
+## 📷 Capturas de Pantalla
+
+<p align="center">
+  <img src="images2/screenshot.png" alt="OMDownloader Interface" width="600"/>
+</p>
+
+--- 
 ---
 
 ## 🔑 Configuración de Telegram (API ID & API Hash)
