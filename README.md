@@ -7,6 +7,7 @@
 ![Architecture](https://img.shields.io/badge/Architecture-MVC%20%2B%20Service%20Locator-informational?style=for-the-badge)
 ![Security](https://img.shields.io/badge/Security-Digitally%20Signed-blue?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-Elite%20Edition-gold?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-1.0.0-blue?style=for-the-badge)
 
 ---
 
@@ -90,15 +91,15 @@ Para activar la potencia total del motor de Telegram, necesitas tus propias cred
 
 ## 🚀 Distribución y Despliegue
 
-### 1. Instalador Profesional (`OMDownloader_Setup.exe`) 💻
-La experiencia definitiva. Instala la aplicación con accesos directos automáticos y gestión de desinstalación limpia.
+### 1. Instalador Profesional (`OMDownloader_v1.0.0_Setup.zip`) 💻
+La experiencia definitiva. Contiene el instalador firmado digitalmente que configura la aplicación con accesos directos automáticos y gestión de desinstalación limpia.
 > **Descarga desde [Releases](https://github.com/Pablitus666/OMDownloader/releases)**
 
-### 2. Edición Portable (`OMDownloader_Portable.exe`) 🏃
-Un único archivo ejecutable que contiene todo el ecosistema. Ideal para llevar en unidades externas.
+### 2. Edición Portable (`OMDownloader_Portable.zip`) 🏃
+Máxima portabilidad. Un único archivo comprimido que contiene el ejecutable firmado listo para usar en cualquier equipo sin necesidad de instalación.
 
 ### 3. Versión en Carpeta (`OMDownloader_Folder.zip`) 🖥️
-Máximo rendimiento de arranque. Ideal para entornos de trabajo fijos donde la velocidad de carga es crítica.
+Máximo rendimiento de arranque. Ideal para entornos de trabajo fijos donde la velocidad de carga es crítica y se prefiere una estructura de archivos abierta.
 
 ---
 

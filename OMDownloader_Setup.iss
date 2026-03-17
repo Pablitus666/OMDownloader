@@ -6,7 +6,7 @@
 [Setup]
 AppId={{9F2D3E4C-5B1A-4D8E-9C2F-1A2B3C4D5E6F}
 AppName=OMDownloader
-AppVersion=1.2.0
+AppVersion=1.0.0
 AppPublisher=Walter Pablo Tellez Ayala
 AppPublisherURL=https://github.com/Pablitus666/OMDownloader
 AppSupportURL=https://github.com/Pablitus666/OMDownloader/issues
@@ -15,7 +15,7 @@ DefaultDirName={autopf}\OMDownloader
 DefaultGroupName=OMDownloader
 AllowNoIcons=yes
 ; Icono del instalador
-SetupIconFile=C:\Users\GAMT\Desktop\OMDownloader\assets\images\icomulti.ico
+SetupIconFile=assets\images\icomulti.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -23,7 +23,7 @@ WizardStyle=modern
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 ; Nombre del archivo de salida
-OutputBaseFilename=OMDownloader_v1.2.0_Setup
+OutputBaseFilename=OMDownloader_v1.0.0_Setup
 
 [Languages]
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
@@ -34,7 +34,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; Incluimos todos los archivos de la carpeta dist\OMDownloader_Folder
-Source: "C:\Users\GAMT\Desktop\OMDownloader\dist\OMDownloader_Folder\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\OMDownloader_Folder\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\OMDownloader"; Filename: "{app}\OMDownloader.exe"

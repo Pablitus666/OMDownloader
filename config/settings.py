@@ -5,7 +5,7 @@ from utils.resources import get_data_path
 
 # Información del Proyecto
 APP_NAME = "OMDownloader"
-VERSION = "1.2.0"
+VERSION = "1.0.0"
 AUTHOR = "Pablo Téllez A."
 YEAR = "2026"
 
@@ -44,7 +44,7 @@ LOGO_PNG = get_resource_path("assets/images/logo.png")
 
 # Rutas de Datos (Nivel Élite: Datos en AppData, Descargas en Downloads)
 DATA_DIR = os.path.abspath(get_data_path("data"))
-CONFIG_FILE = os.path.join(DATA_DIR, "settings_v12.json")
+CONFIG_FILE = os.path.join(DATA_DIR, "settings_v1.json")
 
 # Definir carpeta de descargas por defecto oficial de Windows
 DEFAULT_DOWNLOADS = os.path.join(os.path.expanduser("~"), "Downloads", "OMDownloader")
