@@ -206,8 +206,13 @@ class SettingsTab(ctk.CTkFrame):
             settings.TELEGRAM_API_HASH = new_api_hash
             self.queue_manager.restart_telegram_engine(new_api_id, new_api_hash)
             self.after(500, self._check_tg_status)
+        # FASE 12: Actualizar variable global en memoria (DINAMISMO TOTAL)
+        settings.DOWNLOADS_DIR = downloads_dir
+        
         self.queue_manager.ytdlp_engine.download_path = downloads_dir
         self.queue_manager.ytdlp_engine.set_proxy(proxy if proxy else None)
         if cookies: self.queue_manager.ytdlp_engine.set_cookies(cookies)
+        
+        # Guardar en persistencia (JSON)
         settings.save_config(new_api_id, new_api_hash, downloads_dir)
         show_message(self, "warning.title", "warning.apply_success", self.image_manager)

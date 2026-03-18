@@ -48,15 +48,22 @@ class YTDLPEngine:
                 return None
 
     def download(self, url, options=None, progress_callback=None):
-        """Descarga blindada con sanitización de nombres y fusión eficiente (Fase 2)."""
+        """Descarga blindada con sanitización de nombres y detección de FFmpeg (Fase 12 - Senior)."""
         
         def _progress_hook(d):
             if progress_callback:
                 progress_callback(self._parse_progress(d))
 
+        # FASE 12: Detección inteligente de FFmpeg para portabilidad absoluta
+        ffmpeg_location = None
+        # Buscar ffmpeg.exe en el mismo directorio que el ejecutable (si existe)
+        from utils.resources import get_base_path
+        local_ffmpeg = os.path.join(get_base_path(), "ffmpeg.exe")
+        if os.path.exists(local_ffmpeg):
+            ffmpeg_location = get_base_path()
+
         ydl_opts = {
             'format': 'bestvideo+bestaudio/best',
-            # PROBLEMA #3: Sanitización y prevención de duplicados/nombres largos
             'outtmpl': os.path.join(self.download_path, '%(title).200B [%(id)s].%(ext)s'),
             'progress_hooks': [_progress_hook],
             'nocheckcertificate': True,
@@ -64,8 +71,8 @@ class YTDLPEngine:
             'cookiefile': self.cookies_file,
             'quiet': True,
             'no_color': True,
-            # PROBLEMA #4: Fusión directa en lugar de post-procesado lento
             'merge_output_format': 'mp4',
+            'ffmpeg_location': ffmpeg_location, # Inyectar ruta si la encontramos localmente
             'retries': 10,
             'fragment_retries': 10,
             'retry_sleep_functions': {'http': lambda n: 5},
@@ -80,6 +87,13 @@ class YTDLPEngine:
                     ydl.download([url])
                     return True
             except Exception as e:
+                # Si el error es por falta de ffmpeg, intentamos descargar 'best' (sin fusión)
+                if "ffmpeg" in str(e).lower() and ydl_opts.get('format') != 'best':
+                    logger.warning("FFmpeg no detectado. Reintentando en modo compatibilidad (calidad reducida)...")
+                    ydl_opts['format'] = 'best'
+                    ydl_opts.pop('merge_output_format', None)
+                    continue
+                
                 if attempt < self.max_retries - 1:
                     logger.warning(f"Reintentando descarga ({attempt+1}/{self.max_retries}) por error: {e}")
                     time.sleep(self.retry_delay)

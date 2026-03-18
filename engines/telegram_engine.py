@@ -21,17 +21,18 @@ class TelegramEngine:
         self.client = None
         self.loop_ready = threading.Event()
         
-        if not self.api_id or not self.api_hash or self.api_id == 0:
-            logger.warning("TelegramEngine: Credenciales no configuradas.")
-            return
-
-        # Iniciar loop en hilo dedicado
+        # SIEMPRE iniciamos el loop, independientemente de las credenciales
+        # Esto evita el timeout infinito al intentar interactuar con el motor
         threading.Thread(target=self._start_loop, daemon=True).start()
         if not self.loop_ready.wait(timeout=10):
             logger.error("TelegramEngine: Fallo al iniciar loop asyncio.")
             return
 
-        # Inicialización no bloqueante del cliente
+        if not self.api_id or not self.api_hash or self.api_id == 0:
+            logger.warning("TelegramEngine: Credenciales no configuradas. Motor en espera...")
+            return
+
+        # Inicialización no bloqueante del cliente si hay credenciales
         self.loop.call_soon_threadsafe(self._init_client)
 
     def _start_loop(self):
@@ -81,13 +82,46 @@ class TelegramEngine:
         except: return False
 
     async def _async_ensure_connected(self):
-        """Versión asíncrona interna para máxima eficiencia."""
-        if self.client and self.client.is_connected():
+        """Versión asíncrona interna para máxima eficiencia con auto-inicialización y reparación."""
+        if not self.client:
+            from config import settings
+            api_id = settings.TELEGRAM_API_ID
+            api_hash = settings.TELEGRAM_API_HASH
+            
+            if not api_id or not api_hash or api_id == 0:
+                logger.error("TelegramEngine: No se puede conectar sin API_ID/API_HASH configurados.")
+                return False
+                
+            try:
+                logger.info(f"TelegramEngine: Inicializando cliente bajo demanda con API_ID: {api_id}")
+                self.api_id = api_id
+                self.api_hash = api_hash
+                self.client = TelegramClient(
+                    self.session_name, self.api_id, self.api_hash, 
+                    loop=self.loop,
+                    connection_retries=5,
+                    retry_delay=2,
+                    auto_reconnect=True
+                )
+            except Exception as e:
+                logger.error(f"TelegramEngine: Error al crear cliente bajo demanda: {e}")
+                return False
+
+        if self.client.is_connected():
             return True
+            
         try:
-            await self.client.connect()
+            # Intento de conexión con timeout agresivo
+            await asyncio.wait_for(self.client.connect(), timeout=15)
             return True
-        except: return False
+        except Exception as e:
+            logger.warning(f"TelegramEngine: Fallo al conectar ({e}). Intentando limpieza de sesión...")
+            try:
+                # Si el error persiste, la sesión podría estar corrupta. 
+                # Desconectamos y dejamos que el siguiente intento re-inicialice.
+                await self.client.disconnect()
+            except: pass
+            return False
 
     def get_info(self, url):
         """Punto de entrada síncrono para análisis (usado por Services)."""
@@ -271,14 +305,22 @@ class TelegramEngine:
                             mime = message.document.mime_type or ""
                         
                         is_video = message.video or mime.startswith('video/') or mime == 'application/x-tgvideo'
+                        is_gif = False
+                        if hasattr(message, 'document') and message.document:
+                            is_gif = any(isinstance(a, types.DocumentAttributeAnimated) for a in message.document.attributes) or mime == "image/gif"
+                        
+                        is_voice = message.voice or mime.startswith('audio/ogg')
                         
                         add = False
-                        if media_type == "video" and is_video: add = True
+                        # FASE 12: Inclusión inteligente de medios en categoría VIDEO
+                        if media_type == "video" and (is_video or is_gif or is_voice): add = True
                         elif media_type == "photo" and message.photo: add = True
-                        elif media_type == "document" and hasattr(message, 'document') and message.document and not is_video: add = True
+                        elif media_type == "document" and hasattr(message, 'document') and message.document and not is_video and not is_voice and not is_gif: add = True
                         
                         if add:
                             title = message.file.name if hasattr(message, 'file') and message.file and message.file.name else f"{media_type}_{message.id}"
+                            if is_voice and media_type == "video": title = f"Nota_de_Voz_{message.id}.ogg"
+                            if is_gif and media_type == "video": title = f"GIF_{message.id}.mp4"
                             cid = str(entity.id)
                             display_cid = cid[4:] if cid.startswith('-100') else cid
                             results.append({
@@ -302,10 +344,14 @@ class TelegramEngine:
         except: return []
 
     def get_entity_from_url(self, url):
-        """Analizador universal de URLs."""
-        url = url.strip()
+        """Analizador universal de URLs Élite (Fase 12 - Senior)."""
         if not url: return None, None
+        url = url.strip().replace(" ", "")
+        
+        # Caso 1: Nombre de usuario directo (@user o user)
         if url.startswith('@'): return url[1:], None
+        
+        # Caso 2: URLs de la Web oficial (web.telegram.org)
         if 'web.telegram.org' in url:
             fragment = url.split('#')[-1] if '#' in url else ''
             if not fragment: return None, None
@@ -314,26 +360,46 @@ class TelegramEngine:
                 parts = clean_frag.split('_')
                 try:
                     entity = parts[0]
+                    # Manejar IDs de canales negativos
                     if entity.replace('-', '').isdigit(): return int(entity), int(parts[1])
                     return entity, int(parts[1])
                 except: pass
             if clean_frag.replace('-', '').isdigit(): return int(clean_frag), None
             return clean_frag, None
-        if 't.me/c/' in url:
+            
+        # Caso 3: Enlaces cortos (t.me/c/ o telegram.me/c/) - Canales Privados/Específicos
+        if '/c/' in url:
             try:
-                parts = url.strip('/').split('/')
-                channel_id = parts[-2]
-                if channel_id.isdigit(): return int('-100' + channel_id), int(parts[-1])
-                return channel_id, int(parts[-1])
+                parts = url.rstrip('/').split('/')
+                # El ID del canal está antes del ID del mensaje
+                idx = parts.index('c')
+                channel_id = parts[idx+1]
+                msg_id = int(parts[idx+2]) if len(parts) > idx+2 else None
+                
+                if channel_id.isdigit():
+                    # Los canales privados en MTProto requieren el prefijo -100
+                    full_id = int('-100' + channel_id) if not channel_id.startswith('-100') else int(channel_id)
+                    return full_id, msg_id
+                return channel_id, msg_id
             except: pass
-        elif 't.me/' in url:
+            
+        # Caso 4: Enlaces públicos estándar (t.me/nombre o t.me/nombre/123)
+        parts = url.rstrip('/').split('/')
+        if len(parts) >= 3: # https://t.me/user/123
+            entity = parts[-2]
             try:
-                parts = url.strip('/').split('/')
-                if len(parts) >= 2:
-                    entity = parts[-2] if parts[-1].isdigit() else parts[-1]
-                    msg_id = int(parts[-1]) if parts[-1].isdigit() else None
-                    return entity.lstrip('@'), msg_id
-            except: pass
+                msg_id = int(parts[-1])
+                return entity.lstrip('@'), msg_id
+            except:
+                # Si el último no es número, el último es la entidad
+                return parts[-1].lstrip('@'), None
+        elif len(parts) == 2: # t.me/user o user
+            return parts[-1].lstrip('@'), None
+            
+        # Fallback: Intentar usar el string completo como entidad si no tiene barras
+        if '/' not in url:
+            return url.lstrip('@'), None
+            
         return None, None
 
     def get_message_media(self, entity_id, msg_id):
@@ -353,27 +419,47 @@ class TelegramEngine:
     def send_code_request(self, phone):
         """Solicita el código de inicio de sesión a Telegram (Síncrono para la UI)."""
         async def _request():
-            if not await self._async_ensure_connected(): return False
-            try:
-                # Normalizar número (Bolivia +591 por defecto si no tiene +)
-                phone_clean = phone.strip().replace(" ", "")
-                if not phone_clean.startswith("+"):
-                    phone_clean = f"+591{phone_clean}"
-                
-                # Almacenar el hash para el siguiente paso del login
-                self._phone = phone_clean
-                res = await self.client.send_code_request(phone_clean)
-                self._phone_code_hash = res.phone_code_hash
-                logger.info(f"Código solicitado con éxito para: {phone_clean}")
-                return True
-            except Exception as e:
-                logger.error(f"Error al solicitar código: {e}")
-                return False
+            # Intentar hasta 2 veces si hay errores de reinicio de sesión
+            for attempt in range(2):
+                if not await self._async_ensure_connected(): 
+                    logger.error("TelegramEngine: No se pudo asegurar la conexión antes de enviar código.")
+                    return False
+                try:
+                    # Normalizar número (Bolivia +591 por defecto si no tiene +)
+                    phone_clean = phone.strip().replace(" ", "")
+                    if not phone_clean.startswith("+"):
+                        phone_clean = f"+591{phone_clean}"
+                    
+                    # Almacenar el hash para el siguiente paso del login
+                    self._phone = phone_clean
+                    logger.info(f"TelegramEngine: Solicitando código para {phone_clean} (Intento {attempt+1})...")
+                    res = await self.client.send_code_request(phone_clean)
+                    self._phone_code_hash = res.phone_code_hash
+                    logger.info(f"TelegramEngine: Código enviado con éxito. Hash: {self._phone_code_hash}")
+                    return True
+                except errors.AuthRestartError:
+                    logger.warning("TelegramEngine: AuthRestartError detectado. Reiniciando cliente...")
+                    await self.client.disconnect()
+                    await asyncio.sleep(1)
+                    continue # Reintentar tras desconectar
+                except errors.FloodWaitError as e:
+                    logger.error(f"TelegramEngine: Demasiados intentos. Espera {e.seconds} segundos.")
+                    return f"FLOOD_WAIT_{e.seconds}"
+                except Exception as e:
+                    import traceback
+                    logger.error(f"TelegramEngine: Error al solicitar código: {str(e)}")
+                    # Si estamos desconectados, intentar reconectar en el próximo intento del bucle
+                    if "disconnected" in str(e).lower():
+                        await asyncio.sleep(1)
+                        continue
+                    return False
+            return False
         
         try:
-            return asyncio.run_coroutine_threadsafe(_request(), self.loop).result(timeout=30)
+            # Aumentamos el timeout global para permitir los reintentos
+            return asyncio.run_coroutine_threadsafe(_request(), self.loop).result(timeout=60)
         except Exception as e:
-            logger.error(f"Timeout o fallo en send_code_request: {e}")
+            logger.error(f"TelegramEngine: Timeout o fallo crítico en send_code_request: {e}")
             return False
 
     def sign_in(self, code, password=None):

@@ -64,7 +64,8 @@ class QueueManager:
         self._sequence_counter = 0
         self._sequence_lock = threading.Lock()
         
-        self.ytdlp_engine = YTDLPEngine(download_path=get_data_path("data/downloads"))
+        # Inicialización de motores (la ruta se actualizará dinámicamente en cada descarga)
+        self.ytdlp_engine = YTDLPEngine(download_path=settings.DOWNLOADS_DIR)
         
         try:
             self.telegram_engine = TelegramEngine(
@@ -161,6 +162,24 @@ class QueueManager:
                 self.active_workers_threads[task_id] = current_thread
 
             try:
+                # DINAMISMO MAESTRO: Obtener y normalizar la ruta actual de settings
+                from config import settings
+                current_download_dir = os.path.normpath(os.path.abspath(settings.DOWNLOADS_DIR))
+                
+                # Log de depuración Senior (Invisible para el usuario, visible en logs)
+                logger.debug(f"QueueManager: Iniciando descarga en carpeta: {current_download_dir}")
+                
+                # Asegurar que la carpeta existe antes de descargar
+                if not os.path.exists(current_download_dir):
+                    try: os.makedirs(current_download_dir, exist_ok=True)
+                    except Exception as e:
+                        logger.error(f"QueueManager: No se pudo crear la carpeta {current_download_dir}: {e}")
+                        # Fallback seguro solo si falla la creación
+                        current_download_dir = get_data_path("data/downloads")
+
+                # Sincronizar motor YT-DLP con la ruta normalizada
+                self.ytdlp_engine.download_path = current_download_dir
+
                 if self.db_manager.check_if_downloaded(task_id):
                     task.status = "finished"
                     event_bus.emit("task_status_changed", task)
@@ -218,8 +237,19 @@ class QueueManager:
                         del self.active_workers_threads[task_id]
                     self.active_tasks_count = max(0, self.active_tasks_count - 1)
                     
+                    # FASE 12: Finalización inteligente
                     if self.active_tasks_count == 0 and self.download_queue.empty():
-                        event_bus.emit("queue_finished_all")
+                        # Contar cuántas terminaron bien vs mal
+                        success_count = sum(1 for t in self.tasks if t.status == "finished")
+                        error_count = sum(1 for t in self.tasks if t.status == "error")
+                        
+                        if error_count > 0 and success_count == 0:
+                            event_bus.emit("ui_notification", {
+                                "text": f"PROCESO TERMINADO CON {error_count} ERRORES.",
+                                "color": settings.COLOR_ERROR
+                            })
+                        else:
+                            event_bus.emit("queue_finished_all")
                 
                 self.download_queue.task_done()
 
@@ -269,7 +299,8 @@ class QueueManager:
             if not os.path.splitext(filename)[1]:
                 filename += ".mp4" if is_video else ".jpg"
         
-        output_path = os.path.join(get_data_path("data/downloads"), filename)
+        # DINAMISMO EXTREMO: Usar la ruta actual de settings para Telegram también
+        output_path = os.path.join(settings.DOWNLOADS_DIR, filename)
 
         result_path = self.telegram_engine.download_media(
             message, 
@@ -357,3 +388,17 @@ class QueueManager:
                     self.download_queue.task_done()
             except: pass
         event_bus.emit("tasks_cleared")
+
+    def restart_telegram_engine(self, api_id, api_hash):
+        """Reinicia el motor de Telegram con nuevas credenciales (Punto 1)."""
+        logger.info(f"QueueManager: Reiniciando TelegramEngine con API_ID: {api_id}")
+        if self.telegram_engine:
+            try: self.telegram_engine.disconnect()
+            except: pass
+        
+        self.telegram_engine = TelegramEngine(
+            api_id=api_id,
+            api_hash=api_hash,
+            session_name=os.path.join(get_data_path("data"), settings.TELEGRAM_SESSION_NAME)
+        )
+        return True

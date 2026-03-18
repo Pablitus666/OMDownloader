@@ -68,7 +68,7 @@ TELEGRAM_API_HASH = ""
 TELEGRAM_SESSION_NAME = "omdownloader_session"
 
 def load_config():
-    """Carga la configuración de forma ultra-segura con autorreparación de rutas."""
+    """Carga la configuración de forma ultra-segura con autorreparación de tipos y rutas."""
     global TELEGRAM_API_ID, TELEGRAM_API_HASH, DOWNLOADS_DIR
     
     # 1. Asegurar que el directorio de datos base existe
@@ -85,23 +85,29 @@ def load_config():
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                TELEGRAM_API_ID = int(data.get("api_id", 0))
-                TELEGRAM_API_HASH = data.get("api_hash", "")
+                
+                # REPARACIÓN DE TIPOS (Punto de fallo en PCs con config corrupta)
+                raw_id = data.get("api_id", 0)
+                try:
+                    TELEGRAM_API_ID = int(raw_id) if raw_id else 0
+                except (ValueError, TypeError):
+                    TELEGRAM_API_ID = 0
+                    needs_repair = True
+                
+                TELEGRAM_API_HASH = str(data.get("api_hash", ""))
                 saved_path = data.get("downloads_dir", "")
 
-                # INTELIGENCIA: Si la ruta guardada no existe o está vacía,
-                # significa que estamos en otra PC o disco. Reparamos al vuelo.
-                if not saved_path or not os.path.exists(saved_path):
+                if saved_path:
+                    DOWNLOADS_DIR = os.path.normpath(saved_path)
+                else:
                     DOWNLOADS_DIR = DEFAULT_DOWNLOADS
                     needs_repair = True
-                else:
-                    DOWNLOADS_DIR = saved_path
 
-            # Si necesitamos reparar la configuración, lo hacemos FUERA del bloque with
             if needs_repair:
                 save_config(TELEGRAM_API_ID, TELEGRAM_API_HASH, DOWNLOADS_DIR)
 
         except Exception as e:
+            from utils.logger import logger
             logger.error(f"Settings: Error al leer configuración: {e}")
             DOWNLOADS_DIR = DEFAULT_DOWNLOADS
     else:

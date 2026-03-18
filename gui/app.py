@@ -15,16 +15,25 @@ from gui.settings_tab import SettingsTab
 class OMDownloaderApp:
     def __init__(self, root):
         self.root = root
+        
+        # FASE 12: Invisibilidad Atómica (Eliminar Parpadeos Senior)
+        self.root.withdraw()
+        
+        # Configuración básica de identidad
         self.root.title(f"{settings.APP_NAME} v{settings.VERSION}")
         self.root.geometry(settings.WINDOW_SIZE)
         self.root.minsize(*settings.MIN_WINDOW_SIZE)
         
-        # PROTOCOLO DE CIERRE SEGURO (Punto 2)
+        # ELIMINAR ESQUINAS BLANCAS: Sincronizar el color de fondo del root nativo
+        # Forzamos el color de fondo en el root para que las esquinas redondeadas
+        # de los frames de CustomTkinter no muestren el fondo por defecto.
+        self.root.configure(bg=settings.COLOR_BG)
+        
+        # PROTOCOLO DE CIERRE SEGURO
         self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
         
         # Modo oscuro forzado
-        ctk.set_appearance_mode("Light") 
-        self.root.configure(bg=settings.COLOR_BG)
+        ctk.set_appearance_mode("Dark")
         
         # Núcleo y Servicios
         event_bus.set_root(self.root)
@@ -35,32 +44,56 @@ class OMDownloaderApp:
         self.frames = {}
         self.current_name = None
         
+        # Construcción de la UI
         self._setup_ui()
         self._setup_status_bar()
         self._preload_tabs()
         self._start_periodic_tasks()
+        
+        # FASE FINAL: Revelación Atómica
+        self.root.update_idletasks()
+        self._center_window()
+        self.root.deiconify()
+        
+        # Enlazar eventos de redibujado fluido (Maximizar/Restaurar)
+        self.root.bind("<Map>", self._on_window_mapped)
+
+    def _center_window(self):
+        """Centra la ventana en la pantalla con precisión de píxel."""
+        self.root.update_idletasks()
+        width = self.root.winfo_width()
+        height = self.root.winfo_height()
+        x = (self.root.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.root.winfo_screenheight() // 2) - (height // 2)
+        self.root.geometry(f'{width}x{height}+{x}+{y}')
+
+    def _on_window_mapped(self, event=None):
+        """Refresco atómico profundo al restaurar o maximizar."""
+        # Al restaurar o maximizar, forzamos un redibujado profundo con micro-delay
+        self.root.update_idletasks()
+        if self.current_name and self.current_name in self.frames:
+            # 1. Forzar actualización inmediata del widget
+            self.frames[self.current_name].update()
+            # 2. Refresco de layout tras un pequeño delay para que Windows se asiente
+            self.root.after(100, lambda: self.frames[self.current_name].update_idletasks())
+            # 3. Forzar redibujado del root para eliminar rastro de artefactos
+            self.root.after(150, lambda: self.root.update())
 
     def _on_window_close(self):
         """Maneja el cierre de la ventana de forma profesional."""
-        # Mostrar mensaje de 'Cerrando...' en la barra de estado si es posible
-        self.status_label.configure(text="CERRANDO SERVICIOS Y SESIONES...", text_color=settings.COLOR_ACCENT)
+        if hasattr(self, 'status_label'):
+            self.status_label.configure(text="CERRANDO SERVICIOS Y SESIONES...", text_color=settings.COLOR_ACCENT)
         self.root.update()
-        
-        # Ejecutar shutdown atómico
         self.services.shutdown()
-        
-        # Destruir ventana
         self.root.destroy()
 
     def _start_periodic_tasks(self):
         """Lanza tareas de mantenimiento ligeras."""
-        # Cada 10 minutos
         self.root.after(600000, self._periodic_cleanup)
 
     def _periodic_cleanup(self):
-        """Punto 3: Watchdog de memoria."""
+        """Watchdog de memoria."""
         self.image_manager.clear_cache()
-        # Limpiar cachés de servicios
         self.services.run_memory_watchdog()
         self.root.after(600000, self._periodic_cleanup)
 
@@ -104,6 +137,7 @@ class OMDownloaderApp:
         btn = ctk.CTkButton(self.navigation_frame, corner_radius=0, height=45, border_spacing=20, 
                            text=text, fg_color="transparent", text_color=settings.COLOR_TEXT,
                            hover_color=settings.COLOR_HOVER, anchor="w", 
+                           border_width=0, # ELIMINAR REBORDE (FASE 12)
                            font=ctk.CTkFont(family=settings.FONT_FAMILY, size=15, weight="bold"),
                            command=lambda: self.select_frame_by_name(name))
         btn.grid(row=row, column=0, sticky="ew")
@@ -111,19 +145,25 @@ class OMDownloaderApp:
 
     def select_frame_by_name(self, name):
         if self.current_name == name: return
+        
         if self.current_name and self.current_name in self.frames:
             self.frames[self.current_name].grid_remove()
+            
         self.frames[name].grid(row=0, column=1, sticky="nsew")
+        self.root.update_idletasks()
+        
         self.current_name = name
+        
         for n, btn in [("downloader", self.btn_downloader), ("queue", self.btn_queue), 
                        ("history", self.btn_history), ("settings", self.btn_settings)]:
             btn.configure(fg_color=settings.COLOR_HOVER if n == name else "transparent",
                           text_color=settings.COLOR_ACCENT if n == name else settings.COLOR_TEXT)
+        
         if hasattr(self.frames[name], "on_tab_active"):
-            self.frames[name].on_tab_active()
+            self.root.after(50, self.frames[name].on_tab_active)
 
     def _setup_status_bar(self):
-        """Crea una barra de estado dinámica (Nivel Élite)."""
+        """Crea una barra de estado dinámica."""
         self.status_bar = ctk.CTkFrame(self.root, height=25, fg_color=settings.COLOR_BG_DARK, corner_radius=0)
         self.status_bar.grid(row=1, column=0, columnspan=2, sticky="ew")
         self.status_bar.grid_columnconfigure(0, weight=1)
@@ -133,19 +173,15 @@ class OMDownloaderApp:
                                         text_color=settings.COLOR_TEXT_DIM)
         self.status_label.grid(row=0, column=0, padx=20, pady=2, sticky="w")
         
-        # Suscripciones críticas para el estado dinámico
         event_bus.subscribe("ui_notification", self._show_notification)
         event_bus.subscribe("task_status_changed", self._on_task_activity)
         event_bus.subscribe("queue_finished_all", self._on_queue_finished)
 
     def _on_task_activity(self, task=None):
-        """Actualiza el estado dinámico cuando hay cambios en las tareas."""
-        # Si no hay una notificación activa importante, refrescamos el estado base
         if not hasattr(self, "_notification_active") or not self._notification_active:
             self._refresh_default_status()
 
     def _refresh_default_status(self):
-        """Calcula y muestra el estado base según la actividad de la cola."""
         count = self.services.queue.active_tasks_count
         if count > 0:
             msg = f"DESCARGANDO: {count} ARCHIVOS EN PROCESO..."
@@ -157,14 +193,12 @@ class OMDownloaderApp:
         self.status_label.configure(text=msg.upper(), text_color=color)
 
     def _on_queue_finished(self, data=None):
-        """Mensaje de éxito final."""
         self._show_notification({
             "text": "¡PROCESO FINALIZADO! TODOS LOS ARCHIVOS DESCARGADOS.",
             "color": settings.COLOR_SUCCESS
         })
 
     def _show_notification(self, data):
-        """Muestra un mensaje temporal que sobrescribe el estado base."""
         if isinstance(data, dict):
             text = data.get("text", "")
             color = data.get("color", settings.COLOR_ACCENT)
@@ -178,11 +212,9 @@ class OMDownloaderApp:
         if hasattr(self, "_status_timer"):
             self.root.after_cancel(self._status_timer)
         
-        # Tras el tiempo de espera, volver al estado dinámico real (No a un texto fijo)
         delay = 15000 if is_important else 6000
         self._status_timer = self.root.after(delay, self._clear_notification)
 
     def _clear_notification(self):
-        """Elimina la notificación temporal y vuelve al estado dinámico."""
         self._notification_active = False
         self._refresh_default_status()

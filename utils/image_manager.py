@@ -152,9 +152,11 @@ def get_real_bg(widget):
     return settings.COLOR_BG
 
 def create_image_button(parent, text, command, image_manager, img_name, size, text_color="#FFFFFF"):
+    """Crea un botón de imagen Élite con texto centrado y SIN bordes oscuros (Fase 12)."""
     photo = image_manager.load_tk(img_name, size=size, is_button=True)
     real_bg = get_real_bg(parent)
     
+    # SENIOR: Forzamos highlightthickness=0 y bd=0 para eliminar rebordes en Windows
     btn = tk.Button(parent, text=text, image=photo, compound="center",
                    command=command, bg=real_bg, fg=text_color,
                    activebackground=real_bg, activeforeground="#fcbf49",
@@ -163,6 +165,9 @@ def create_image_button(parent, text, command, image_manager, img_name, size, te
                    cursor="hand2", font=("Segoe UI", 12, "bold"))
     
     btn.image = photo 
+    # Asegurar que el fondo del botón no cambie al interactuar
+    btn.config(highlightbackground=real_bg, highlightcolor=real_bg)
+    
     btn.bind("<Enter>", lambda e: btn.config(fg="#fcbf49"))
     btn.bind("<Leave>", lambda e: btn.config(fg=text_color))
     
