@@ -36,7 +36,7 @@ A diferencia de herramientas convencionales, **OMDownloader** implementa un sist
 | **Throttling Inteligente** | EventBus optimizado (10-30 FPS) para minimizar el impacto en la CPU. |
 | **Privacidad Total** | Almacenamiento aislado en `%LOCALAPPDATA%`. Cero archivos temporales en el escritorio. |
 | **HiDPI Ready** | Escalado dinámico y assets multi-capa para nitidez perfecta en monitores 4K. |
-| **Firma Digital** | Autenticidad garantizada mediante firma **SHA256** de Walter Pablo Téllez Ayala. |
+| **Firma Digital** | Autenticidad garantizada mediante firma **SHA256**. |
 
 ---
 
@@ -111,8 +111,7 @@ Máximo rendimiento de arranque. Ideal para entornos de trabajo fijos donde la v
 
 ## 👨‍💻 Autor
 
-**Walter Pablo Téllez Ayala**  
-Software Developer  
+**Software Developer**  
 📍 Bolivia 🇧🇴 <img src="https://flagcdn.com/w20/bo.png" width="20"/> <br>
 📧 [pharmakoz@gmail.com](mailto:pharmakoz@gmail.com) 
 

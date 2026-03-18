@@ -22,7 +22,7 @@ Este lanzamiento marca el inicio de una herramienta de **Ingeniería del script*
 *   **Organización Automática:** Las descargas se dirigen por defecto a la carpeta `Downloads\OMDownloader` para un acceso inmediato.
 
 ### 🛡️ Seguridad y Autenticidad
-*   **Firma Digital SHA256:** Todos los binarios están firmados digitalmente por **Walter Pablo Téllez Ayala**, garantizando la integridad del software.
+*   **Firma Digital SHA256:** Todos los binarios están firmados digitalmente, garantizando la integridad del software.
 *   **Entorno Seguro:** Aplicación diseñada para funcionar de forma aislada, sin telemetría ni archivos temporales dispersos.
 
 ### 📡 Motores de Descarga
@@ -59,11 +59,8 @@ Para habilitar las descargas de Telegram, configura tus credenciales en la pesta
 
 ## 👨‍💻 Autor
 
-**Walter Pablo Téllez Ayala**  
-Software Developer  
+**Software Developer**  
 📍 Bolivia 🇧🇴 <img src="https://flagcdn.com/w20/bo.png" width="20"/> <br>
 📧 [pharmakoz@gmail.com](mailto:pharmakoz@gmail.com) 
 
 © 2026 — Wordy Professional Tool
-
----
