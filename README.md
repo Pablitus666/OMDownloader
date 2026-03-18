@@ -111,7 +111,8 @@ Máximo rendimiento de arranque. Ideal para entornos de trabajo fijos donde la v
 
 ## 👨‍💻 Autor
 
-**Software Developer**  
+**Walter Pablo Téllez Ayala**  
+Software Developer  
 📍 Bolivia 🇧🇴 <img src="https://flagcdn.com/w20/bo.png" width="20"/> <br>
 📧 [pharmakoz@gmail.com](mailto:pharmakoz@gmail.com) 
 
