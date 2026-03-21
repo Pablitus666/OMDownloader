@@ -66,6 +66,11 @@ OMDownloader/
 
 ---
 
+![OMDownloader Preview](https://raw.githubusercontent.com/Pablitus666/OMDownloader/main/images2/preview.png)
+
+---
+
+
 ## 🔑 Configuración de Credenciales
 
 Para utilizar el motor de Telegram es necesario configurar credenciales propias:
