@@ -22,7 +22,6 @@ class TelegramEngine:
         self.loop_ready = threading.Event()
         
         # SIEMPRE iniciamos el loop, independientemente de las credenciales
-        # Esto evita el timeout infinito al intentar interactuar con el motor
         threading.Thread(target=self._start_loop, daemon=True).start()
         if not self.loop_ready.wait(timeout=10):
             logger.error("TelegramEngine: Fallo al iniciar loop asyncio.")
@@ -50,8 +49,6 @@ class TelegramEngine:
                 retry_delay=5,
                 auto_reconnect=True
             )
-            # El cliente Telethon necesita ser iniciado/conectado dentro del loop
-            # pero lo haremos a demanda o vía connect() explicito.
         except Exception as e:
             logger.error(f"Fallo al crear cliente Telethon: {e}")
 
@@ -82,60 +79,33 @@ class TelegramEngine:
         except: return False
 
     async def _async_ensure_connected(self):
-        """Versión asíncrona interna para máxima eficiencia con auto-inicialización y reparación."""
+        """Versión asíncrona interna para máxima eficiencia."""
         if not self.client:
             from config import settings
             api_id = settings.TELEGRAM_API_ID
             api_hash = settings.TELEGRAM_API_HASH
-            
-            if not api_id or not api_hash or api_id == 0:
-                logger.error("TelegramEngine: No se puede conectar sin API_ID/API_HASH configurados.")
-                return False
-                
+            if not api_id or not api_hash or api_id == 0: return False
             try:
-                logger.info(f"TelegramEngine: Inicializando cliente bajo demanda con API_ID: {api_id}")
-                self.api_id = api_id
-                self.api_hash = api_hash
-                self.client = TelegramClient(
-                    self.session_name, self.api_id, self.api_hash, 
-                    loop=self.loop,
-                    connection_retries=5,
-                    retry_delay=2,
-                    auto_reconnect=True
-                )
-            except Exception as e:
-                logger.error(f"TelegramEngine: Error al crear cliente bajo demanda: {e}")
-                return False
+                self.client = TelegramClient(self.session_name, api_id, api_hash, loop=self.loop)
+            except: return False
 
-        if self.client.is_connected():
-            return True
-            
+        if self.client.is_connected(): return True
         try:
-            # Intento de conexión con timeout agresivo
             await asyncio.wait_for(self.client.connect(), timeout=15)
             return True
-        except Exception as e:
-            logger.warning(f"TelegramEngine: Fallo al conectar ({e}). Intentando limpieza de sesión...")
-            try:
-                # Si el error persiste, la sesión podría estar corrupta. 
-                # Desconectamos y dejamos que el siguiente intento re-inicialice.
-                await self.client.disconnect()
-            except: pass
-            return False
+        except: return False
 
     def get_info(self, url):
-        """Punto de entrada síncrono para análisis (usado por Services)."""
+        """Punto de entrada síncrono para análisis."""
         async def _analyze():
             if not await self._async_ensure_connected(): return None
             try:
                 entity_id, msg_id = self.get_entity_from_url(url)
                 if not entity_id: return None
                 
-                # FASE 12: Extracción de Entidad Completa (OSINT Senior)
                 entity = await self.client.get_entity(entity_id)
                 full_entity = None
                 try:
-                    # Intentar obtener información extendida (Bio, Participantes)
                     if isinstance(entity, (types.Channel, types.Chat)):
                         full_entity = await self.client(functions.channels.GetFullChannelRequest(channel=entity))
                     elif isinstance(entity, types.User):
@@ -146,13 +116,11 @@ class TelegramEngine:
                 username = getattr(entity, 'username', 'N/A')
                 is_restricted = getattr(entity, 'noforwards', False)
                 
-                # Metadatos de Seguridad y Verificación
                 verified = "SÍ ✅" if getattr(entity, 'verified', False) else "NO"
                 scam = "SÍ ⚠️" if getattr(entity, 'scam', False) else "NO"
                 fake = "SÍ 🎭" if getattr(entity, 'fake', False) else "NO"
                 restricted = "SÍ 🚫" if is_restricted else "NO"
                 
-                # Información de Participantes y Bio
                 participants = "N/A"
                 description = "Sin descripción"
                 if full_entity:
@@ -216,7 +184,6 @@ class TelegramEngine:
                 logger.error(f"Error asíncrono en get_info: {e}")
                 return None
 
-        # Usamos timeout para no bloquear el hilo del Services permanentemente
         future = asyncio.run_coroutine_threadsafe(_analyze(), self.loop)
         try: return future.result(timeout=60)
         except: return None
@@ -258,7 +225,7 @@ class TelegramEngine:
                 return None
 
         future = asyncio.run_coroutine_threadsafe(_down(), self.loop)
-        try: return future.result(timeout=7200) # 2 horas para archivos masivos
+        try: return future.result(timeout=7200)
         except: return None
 
     def scan_media(self, url, media_type="video", limit=2000):
@@ -272,7 +239,6 @@ class TelegramEngine:
                 entity = await self.client.get_entity(entity_id)
                 max_items = min(limit, 2000)
 
-                # Avatares primero
                 if media_type == "photo":
                     try:
                         photos = await self.client.get_profile_photos(entity)
@@ -290,7 +256,6 @@ class TelegramEngine:
                             if len(results) >= max_items: break
                     except: pass
 
-                # Mensajes después
                 offset_id = 0
                 while len(results) < max_items:
                     messages = await self.client.get_messages(entity, limit=100, offset_id=offset_id)
@@ -312,7 +277,6 @@ class TelegramEngine:
                         is_voice = message.voice or mime.startswith('audio/ogg')
                         
                         add = False
-                        # FASE 12: Inclusión inteligente de medios en categoría VIDEO
                         if media_type == "video" and (is_video or is_gif or is_voice): add = True
                         elif media_type == "photo" and message.photo: add = True
                         elif media_type == "document" and hasattr(message, 'document') and message.document and not is_video and not is_voice and not is_gif: add = True
@@ -333,76 +297,65 @@ class TelegramEngine:
                                 }
                             })
                             if len(results) >= max_items: break
-                    await asyncio.sleep(0.05) # Delay mínimo para no saturar pero ser rápido
+                    await asyncio.sleep(0.05)
                 return results
             except Exception as e:
                 logger.error(f"Error en escaneo asíncrono: {e}")
                 return results
 
         future = asyncio.run_coroutine_threadsafe(_scan(), self.loop)
-        try: return future.result(timeout=300) # 5 minutos para escaneos masivos
+        try: return future.result(timeout=300)
         except: return []
 
     def get_entity_from_url(self, url):
-        """Analizador universal de URLs Élite (Fase 12 - Senior)."""
+        """Analizador universal de URLs."""
         if not url: return None, None
+        if '?' in url: url = url.split('?')[0]
         url = url.strip().replace(" ", "")
         
-        # Caso 1: Nombre de usuario directo (@user o user)
         if url.startswith('@'): return url[1:], None
         
-        # Caso 2: URLs de la Web oficial (web.telegram.org)
         if 'web.telegram.org' in url:
             fragment = url.split('#')[-1] if '#' in url else ''
             if not fragment: return None, None
-            clean_frag = fragment.replace('q=', '').lstrip('@')
+            clean_frag = fragment.replace('tgaddr?parts=', '').lstrip('@')
             if '_' in clean_frag:
                 parts = clean_frag.split('_')
                 try:
-                    entity = parts[0]
-                    # Manejar IDs de canales negativos
-                    if entity.replace('-', '').isdigit(): return int(entity), int(parts[1])
+                    # Convertir a int si es un ID numérico
+                    entity = int(parts[0]) if parts[0].replace('-', '').isdigit() else parts[0]
                     return entity, int(parts[1])
                 except: pass
+            # Caso ID simple sin mensaje
             if clean_frag.replace('-', '').isdigit(): return int(clean_frag), None
             return clean_frag, None
             
-        # Caso 3: Enlaces cortos (t.me/c/ o telegram.me/c/) - Canales Privados/Específicos
         if '/c/' in url:
             try:
                 parts = url.rstrip('/').split('/')
-                # El ID del canal está antes del ID del mensaje
                 idx = parts.index('c')
                 channel_id = parts[idx+1]
                 msg_id = int(parts[idx+2]) if len(parts) > idx+2 else None
-                
-                if channel_id.isdigit():
-                    # Los canales privados en MTProto requieren el prefijo -100
-                    full_id = int('-100' + channel_id) if not channel_id.startswith('-100') else int(channel_id)
+                if channel_id.replace('-', '').isdigit():
+                    full_id = int(channel_id)
+                    # Forzar prefijo -100 si parece un ID corto de canal privado
+                    if not str(full_id).startswith('-100'):
+                        full_id = int('-100' + str(full_id))
                     return full_id, msg_id
                 return channel_id, msg_id
             except: pass
             
-        # Caso 4: Enlaces públicos estándar (t.me/nombre o t.me/nombre/123)
         parts = url.rstrip('/').split('/')
-        if len(parts) >= 3: # https://t.me/user/123
-            entity = parts[-2]
-            try:
-                msg_id = int(parts[-1])
-                return entity.lstrip('@'), msg_id
-            except:
-                # Si el último no es número, el último es la entidad
-                return parts[-1].lstrip('@'), None
-        elif len(parts) == 2: # t.me/user o user
-            return parts[-1].lstrip('@'), None
+        if len(parts) >= 2:
+            entity = parts[-2] if len(parts) >= 3 and parts[-1].isdigit() else parts[-1]
+            if entity.replace('-', '').isdigit(): entity = int(entity)
+            msg_id = int(parts[-1]) if parts[-1].isdigit() else None
+            return entity.lstrip('@') if isinstance(entity, str) else entity, msg_id
             
-        # Fallback: Intentar usar el string completo como entidad si no tiene barras
-        if '/' not in url:
-            return url.lstrip('@'), None
-            
-        return None, None
+        return url.lstrip('@'), None
 
     def get_message_media(self, entity_id, msg_id):
+        """Obtiene el objeto de mensaje media."""
         async def _get():
             if not await self._async_ensure_connected(): return None
             try:
@@ -413,91 +366,57 @@ class TelegramEngine:
         except: return None
 
     def is_connected_status(self):
-        """Devuelve si el cliente está conectado físicamente."""
         return self.client and self.client.is_connected()
 
     def send_code_request(self, phone):
-        """Solicita el código de inicio de sesión a Telegram (Síncrono para la UI)."""
+        """Solicita el código de inicio de sesión."""
         async def _request():
-            # Intentar hasta 2 veces si hay errores de reinicio de sesión
             for attempt in range(2):
-                if not await self._async_ensure_connected(): 
-                    logger.error("TelegramEngine: No se pudo asegurar la conexión antes de enviar código.")
-                    return False
+                if not await self._async_ensure_connected(): return False
                 try:
-                    # Normalizar número (Bolivia +591 por defecto si no tiene +)
                     phone_clean = phone.strip().replace(" ", "")
-                    if not phone_clean.startswith("+"):
-                        phone_clean = f"+591{phone_clean}"
-                    
-                    # Almacenar el hash para el siguiente paso del login
+                    if not phone_clean.startswith("+"): phone_clean = f"+591{phone_clean}"
                     self._phone = phone_clean
-                    logger.info(f"TelegramEngine: Solicitando código para {phone_clean} (Intento {attempt+1})...")
                     res = await self.client.send_code_request(phone_clean)
                     self._phone_code_hash = res.phone_code_hash
-                    logger.info(f"TelegramEngine: Código enviado con éxito. Hash: {self._phone_code_hash}")
                     return True
                 except errors.AuthRestartError:
-                    logger.warning("TelegramEngine: AuthRestartError detectado. Reiniciando cliente...")
                     await self.client.disconnect()
                     await asyncio.sleep(1)
-                    continue # Reintentar tras desconectar
-                except errors.FloodWaitError as e:
-                    logger.error(f"TelegramEngine: Demasiados intentos. Espera {e.seconds} segundos.")
-                    return f"FLOOD_WAIT_{e.seconds}"
-                except Exception as e:
-                    import traceback
-                    logger.error(f"TelegramEngine: Error al solicitar código: {str(e)}")
-                    # Si estamos desconectados, intentar reconectar en el próximo intento del bucle
-                    if "disconnected" in str(e).lower():
-                        await asyncio.sleep(1)
-                        continue
-                    return False
+                    continue
+                except: return False
             return False
-        
-        try:
-            # Aumentamos el timeout global para permitir los reintentos
-            return asyncio.run_coroutine_threadsafe(_request(), self.loop).result(timeout=60)
-        except Exception as e:
-            logger.error(f"TelegramEngine: Timeout o fallo crítico en send_code_request: {e}")
-            return False
+        try: return asyncio.run_coroutine_threadsafe(_request(), self.loop).result(timeout=60)
+        except: return False
 
     def sign_in(self, code, password=None):
-        """Completa el inicio de sesión con el código (y password si tiene 2FA)."""
+        """Completa el inicio de sesión."""
         async def _login():
             if not await self._async_ensure_connected(): return False
             try:
                 try:
                     await self.client.sign_in(self._phone, code, phone_code_hash=self._phone_code_hash)
-                    logger.info("Inicio de sesión completado con éxito.")
                     return True
                 except errors.SessionPasswordNeededError:
                     if password:
                         await self.client.sign_in(password=password)
-                        logger.info("Inicio de sesión con 2FA completado con éxito.")
                         return True
-                    else:
-                        logger.warning("Se requiere contraseña 2FA.")
-                        return "2FA_REQUIRED"
-                except Exception as e:
-                    logger.error(f"Error en sign_in de Telethon: {e}")
-                    return False
-            except Exception as e:
-                logger.error(f"Fallo crítico en sign_in: {e}")
-                return False
-
-        try:
-            return asyncio.run_coroutine_threadsafe(_login(), self.loop).result(timeout=30)
-        except Exception as e:
-            logger.error(f"Timeout en sign_in: {e}")
-            return False
+                    return "2FA_REQUIRED"
+                except: return False
+            except: return False
+        try: return asyncio.run_coroutine_threadsafe(_login(), self.loop).result(timeout=30)
+        except: return False
 
     def disconnect(self):
-        """Cierre atómico del cliente y detención del bucle de eventos."""
+        """Cierre atómico limpio."""
+        if not self.loop or not self.loop.is_running(): return
         async def _disc():
             if self.client: 
-                await self.client.disconnect()
-            self.loop.stop() # DETENER FÍSICAMENTE EL LOOP
-            
-        if self.client and self.loop.is_running():
-            asyncio.run_coroutine_threadsafe(_disc(), self.loop)
+                try: await self.client.disconnect()
+                except: pass
+            tasks = [t for t in asyncio.all_tasks(self.loop) if t is not asyncio.current_task()]
+            for task in tasks: task.cancel()
+            try: await asyncio.gather(*tasks, return_exceptions=True)
+            except: pass
+            self.loop.stop()
+        asyncio.run_coroutine_threadsafe(_disc(), self.loop)

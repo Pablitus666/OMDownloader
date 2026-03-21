@@ -69,21 +69,21 @@ class OMDownloaderApp:
 
     def _on_window_mapped(self, event=None):
         """Refresco atómico profundo al restaurar o maximizar."""
-        # Al restaurar o maximizar, forzamos un redibujado profundo con micro-delay
+        # Al restaurar o maximizar, forzamos un redibujado de layout (SAFE)
         self.root.update_idletasks()
         if self.current_name and self.current_name in self.frames:
-            # 1. Forzar actualización inmediata del widget
-            self.frames[self.current_name].update()
+            # 1. Forzar refresco de layout del widget
+            self.frames[self.current_name].update_idletasks()
             # 2. Refresco de layout tras un pequeño delay para que Windows se asiente
             self.root.after(100, lambda: self.frames[self.current_name].update_idletasks())
-            # 3. Forzar redibujado del root para eliminar rastro de artefactos
-            self.root.after(150, lambda: self.root.update())
+            # 3. Forzar redibujado final del root sin procesar eventos de usuario (SAFE)
+            self.root.after(150, lambda: self.root.update_idletasks())
 
     def _on_window_close(self):
         """Maneja el cierre de la ventana de forma profesional."""
         if hasattr(self, 'status_label'):
             self.status_label.configure(text="CERRANDO SERVICIOS Y SESIONES...", text_color=settings.COLOR_ACCENT)
-        self.root.update()
+        self.root.update_idletasks()
         self.services.shutdown()
         self.root.destroy()
 
