@@ -66,7 +66,11 @@ OMDownloader/
 
 ---
 
-![OMDownloader Preview](https://raw.githubusercontent.com/Pablitus666/OMDownloader/main/images2/preview.png)
+## 📷 Capturas de Pantalla
+
+<p align="center">
+  <img src="images2/screenshot.png" alt="OMDownloader Interface" width="600"/>
+</p>
 
 ---
 
